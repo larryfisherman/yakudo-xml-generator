@@ -116,6 +116,12 @@ async Task RunImport(string path)
         else
         {
             Console.WriteLine($"  [ERR] PLU {plu,-5}  {nazwa}  (status: {resp.StatusCode}, url: {finalUrl})");
+            if (failed == 0)
+            {
+                var body = await resp.Content.ReadAsStringAsync();
+                File.WriteAllText("error_response.html", body, System.Text.Encoding.UTF8);
+                Console.WriteLine("       Zapisano error_response.html - otworz w przegladarce zeby zobaczyc blad");
+            }
             failed++;
         }
 

@@ -27,6 +27,8 @@ if (!File.Exists(xlsxPath))
     return;
 }
 
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
 if (importMode)
     await RunImport(xlsxPath);
 else
@@ -101,20 +103,19 @@ async Task RunImport(string path)
         var price    = row.Cell(5).IsEmpty() ? 0.0 : row.Cell(5).GetValue<double>();
         var priceStr = price.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
 
-        var form = BuildForm(nazwa, plu, ean, priceStr, token);
-        var resp = await http.PostAsync("/plus/add", form);
-
-        bool ok = resp.StatusCode is HttpStatusCode.OK or HttpStatusCode.Found
-                  || (int)resp.StatusCode == 302;
+        var form     = BuildForm(nazwa, plu, ean, priceStr, token);
+        var resp     = await http.PostAsync("/plus/add", form);
+        var finalUrl = resp.RequestMessage?.RequestUri?.AbsolutePath ?? "";
+        bool ok      = finalUrl == "/plus" || finalUrl.StartsWith("/plus?");
 
         if (ok)
         {
-            Console.WriteLine($"  ✓  PLU {plu,-5}  {nazwa}");
+            Console.WriteLine($"  [OK]  PLU {plu,-5}  {nazwa}");
             imported++;
         }
         else
         {
-            Console.WriteLine($"  ✗  PLU {plu,-5}  {nazwa}  [{resp.StatusCode}]");
+            Console.WriteLine($"  [ERR] PLU {plu,-5}  {nazwa}  (status: {resp.StatusCode}, url: {finalUrl})");
             failed++;
         }
 

@@ -265,9 +265,8 @@ static string CellToString(IXLCell cell)
 
 static string ComputeEan(string raw, string plu)
 {
-    if (string.IsNullOrEmpty(raw))      return "0" + plu;
-    if (raw.Length <= 8 && raw.StartsWith("29")) return raw[2..];
-    return raw;
+    if (!string.IsNullOrEmpty(raw) && raw.Length == 13) return raw;
+    return ("290" + plu).PadRight(13, '0');
 }
 
 static string XmlEscape(string s) => s

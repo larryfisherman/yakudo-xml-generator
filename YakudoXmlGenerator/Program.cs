@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 // ── Konfiguracja ─────────────────────────────────────────────────────────────
 const string BaseUrl   = "http://localhost:8200";
-const string LoginUrl  = "/account/login";
+const string LoginUrl  = "/auth/login";
 const string Username  = "admin";
 const string Password  = ""; // ← uzupełnij przed uruchomieniem
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,7 +47,14 @@ async Task RunImport(string path)
 
     // Logowanie
     Console.WriteLine("Logowanie...");
-    var loginPage  = await http.GetStringAsync(LoginUrl);
+    var loginResp0 = await http.GetAsync(LoginUrl);
+    if (!loginResp0.IsSuccessStatusCode)
+    {
+        Console.WriteLine($"Nie znaleziono strony logowania ({LoginUrl}): {loginResp0.StatusCode}");
+        Console.WriteLine("Sprawdź stałą LoginUrl w Program.cs (linia 8).");
+        return;
+    }
+    var loginPage  = await loginResp0.Content.ReadAsStringAsync();
     var loginToken = ExtractToken(loginPage);
 
     if (string.IsNullOrEmpty(loginToken))
@@ -58,7 +65,7 @@ async Task RunImport(string path)
 
     var loginResp = await http.PostAsync(LoginUrl, new FormUrlEncodedContent(new Dictionary<string, string>
     {
-        ["Username"]                    = Username,
+        ["UsernameOrEmail"]             = Username,
         ["Password"]                    = Password,
         ["__RequestVerificationToken"]  = loginToken
     }));

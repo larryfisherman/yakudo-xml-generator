@@ -92,7 +92,8 @@ async Task RunImport(string path)
     }
 
     int imported = 0, skipped = 0, failed = 0;
-    var failedItems = new List<string>();
+    const string errorFile = "bledy_import.txt";
+    File.WriteAllText(errorFile, $"Import {DateTime.Now:yyyy-MM-dd HH:mm:ss}\r\n", System.Text.Encoding.UTF8);
 
     foreach (var row in sheet.RowsUsed().Skip(1))
     {
@@ -117,7 +118,7 @@ async Task RunImport(string path)
         else
         {
             Console.WriteLine($"  [ERR] PLU {plu,-5}  {nazwa}  (status: {resp.StatusCode}, url: {finalUrl})");
-            failedItems.Add($"PLU {plu,-5}  {nazwa}");
+            File.AppendAllText(errorFile, $"PLU {plu,-5}  {nazwa}\r\n", System.Text.Encoding.UTF8);
             if (failed == 0)
             {
                 var body = await resp.Content.ReadAsStringAsync();
@@ -131,11 +132,8 @@ async Task RunImport(string path)
 
     Console.WriteLine($"\nGotowe: {imported} zaimportowanych, {failed} bledow, {skipped} pominieto.");
 
-    if (failedItems.Count > 0)
-    {
-        File.WriteAllLines("bledy_import.txt", failedItems, System.Text.Encoding.UTF8);
-        Console.WriteLine($"Lista bledow zapisana w: bledy_import.txt");
-    }
+    if (failed > 0)
+        Console.WriteLine($"Lista bledow zapisana w: {errorFile}");
 }
 
 MultipartFormDataContent BuildForm(string nazwa, string plu, string ean, string price, string token)

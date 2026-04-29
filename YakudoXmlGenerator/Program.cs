@@ -101,12 +101,12 @@ async Task RunImport(string path)
 
     foreach (var row in sheet.RowsUsed().Skip(1))
     {
-        if (row.Cell(11).IsEmpty()) { skipped++; continue; }
+        if (row.Cell(12).IsEmpty()) { skipped++; continue; }
 
-        var plu      = CellToString(row.Cell(11));
-        var nazwa    = CellToString(row.Cell(12));
-        var ean      = ComputeEan(CellToString(row.Cell(2)), plu);
-        var price    = row.Cell(5).IsEmpty() ? 0.0 : row.Cell(5).GetValue<double>();
+        var plu      = CellToString(row.Cell(12));
+        var nazwa    = CellToString(row.Cell(2));
+        var ean      = ComputeEan(CellToString(row.Cell(3)), plu);
+        var price    = row.Cell(6).IsEmpty() ? 0.0 : row.Cell(6).GetValue<double>();
         var priceStr = price.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
 
         var form     = BuildForm(nazwa, plu, ean, priceStr, token);
@@ -236,12 +236,12 @@ void RunXmlExport(string path)
 
     foreach (var row in sheet.RowsUsed().Skip(1))
     {
-        if (row.Cell(11).IsEmpty()) { skipped++; continue; }
+        if (row.Cell(12).IsEmpty()) { skipped++; continue; }
 
-        var plu   = CellToString(row.Cell(11));
-        var nazwa = CellToString(row.Cell(12));
-        var ean   = ComputeEan(CellToString(row.Cell(2)), plu);
-        var price = row.Cell(5).IsEmpty() ? 0.0 : row.Cell(5).GetValue<double>();
+        var plu   = CellToString(row.Cell(12));
+        var nazwa = CellToString(row.Cell(2));
+        var ean   = ComputeEan(CellToString(row.Cell(3)), plu);
+        var price = row.Cell(6).IsEmpty() ? 0.0 : row.Cell(6).GetValue<double>();
 
         var xml      = BuildXml(nazwa, plu, ean, price);
         var fileName = $"Plu_{plu}_{ean}_{timestamp}.xml";
@@ -267,11 +267,11 @@ void RunFixEan(string path)
 
     foreach (var row in sheet.RowsUsed().Skip(1))
     {
-        if (row.Cell(11).IsEmpty()) { skipped++; continue; }
+        if (row.Cell(12).IsEmpty()) { skipped++; continue; }
 
-        var plu    = CellToString(row.Cell(11));
-        var rawEan = CellToString(row.Cell(2));
-        var nazwa  = CellToString(row.Cell(12));
+        var plu    = CellToString(row.Cell(12));
+        var rawEan = CellToString(row.Cell(3));
+        var nazwa  = CellToString(row.Cell(2));
 
         // EAN producenta (13 cyfr, nie zaczyna się od "29") → zostawiamy
         if (!string.IsNullOrEmpty(rawEan) && rawEan.Length == 13 && !rawEan.StartsWith("29"))
@@ -289,7 +289,7 @@ void RunFixEan(string path)
         }
         else
         {
-            row.Cell(2).SetValue(excelEan);
+            row.Cell(3).SetValue(excelEan);
             var line = $"Wiersz {row.RowNumber(),-4}  PLU {plu,-5}  {nazwa,-30}  EAN: \"{rawEan}\" → \"{excelEan}\"";
             Console.WriteLine($"  {line}");
             File.AppendAllText(logFile, line + "\r\n", Encoding.UTF8);

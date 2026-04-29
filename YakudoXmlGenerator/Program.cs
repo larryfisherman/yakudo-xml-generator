@@ -144,7 +144,7 @@ MultipartFormDataContent BuildForm(string nazwa, string plu, string ean, string 
     A("Item.WeightingMode",             "Weighted");
     A("Item.UnitPrice",                 price);
     A("Item.Tare",                      "0");
-    A("Item.BarcodeDefinitionId",       "");
+    A("Item.BarcodeDefinitionId",       "1");
     A("Item.BarcodeFormat",             "f1F2_CCCC_XXXXXX_CD");
     A("Item.Ean",                       ean);
     A("Item.BarcodeFormatRightSideData","price");

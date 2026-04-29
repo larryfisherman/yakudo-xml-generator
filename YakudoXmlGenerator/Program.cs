@@ -13,13 +13,15 @@ const string Password  = ""; // ← uzupełnij przed uruchomieniem
 if (args.Length == 0)
 {
     Console.WriteLine("Użycie:");
-    Console.WriteLine("  dotnet run -- <plik.xlsx>           → generuje pliki XML");
-    Console.WriteLine("  dotnet run -- <plik.xlsx> --import  → importuje bezpośrednio do Yakudo");
+    Console.WriteLine("  dotnet run -- <plik.xlsx>             → generuje pliki XML");
+    Console.WriteLine("  dotnet run -- <plik.xlsx> --import    → importuje bezpośrednio do Yakudo");
+    Console.WriteLine("  dotnet run -- <plik.xlsx> --fix-ean   → uzupełnia/poprawia EAN w pliku Excel");
     return;
 }
 
 var xlsxPath   = args[0];
 var importMode = args.Contains("--import");
+var fixEanMode = args.Contains("--fix-ean");
 
 if (!File.Exists(xlsxPath))
 {
@@ -31,6 +33,8 @@ Console.OutputEncoding = System.Text.Encoding.UTF8;
 
 if (importMode)
     await RunImport(xlsxPath);
+else if (fixEanMode)
+    RunFixEan(xlsxPath);
 else
     RunXmlExport(xlsxPath);
 
@@ -250,6 +254,56 @@ void RunXmlExport(string path)
     if (skipped > 0) Console.WriteLine($"Pominięto {skipped} wierszy (brak PLU).");
 }
 
+// ── Tryb fix-ean ─────────────────────────────────────────────────────────────
+
+void RunFixEan(string path)
+{
+    using var workbook = new XLWorkbook(path);
+    var sheet = workbook.Worksheet(1);
+
+    int updated = 0, unchanged = 0, skipped = 0;
+    const string logFile = "zmienione_ean.txt";
+    File.WriteAllText(logFile, $"Fix-EAN {DateTime.Now:yyyy-MM-dd HH:mm:ss}  |  Plik: {path}\r\n", Encoding.UTF8);
+
+    foreach (var row in sheet.RowsUsed().Skip(1))
+    {
+        if (row.Cell(11).IsEmpty()) { skipped++; continue; }
+
+        var plu    = CellToString(row.Cell(11));
+        var rawEan = CellToString(row.Cell(2));
+        var nazwa  = CellToString(row.Cell(12));
+
+        // EAN producenta (13 cyfr, nie zaczyna się od "29") → zostawiamy
+        if (!string.IsNullOrEmpty(rawEan) && rawEan.Length == 13 && !rawEan.StartsWith("29"))
+        {
+            unchanged++;
+            continue;
+        }
+
+        // EAN dla Comarch: PLU dopełniony zerami do 4 cyfr
+        var excelEan = plu.PadLeft(4, '0');
+
+        if (rawEan == excelEan)
+        {
+            unchanged++;
+        }
+        else
+        {
+            row.Cell(2).SetValue(excelEan);
+            var line = $"Wiersz {row.RowNumber(),-4}  PLU {plu,-5}  {nazwa,-30}  EAN: \"{rawEan}\" → \"{excelEan}\"";
+            Console.WriteLine($"  {line}");
+            File.AppendAllText(logFile, line + "\r\n", Encoding.UTF8);
+            updated++;
+        }
+    }
+
+    workbook.Save();
+    Console.WriteLine($"\nGotowe: {updated} zaktualizowanych, {unchanged} bez zmian, {skipped} pominieto (brak PLU).");
+    Console.WriteLine($"Zapisano: {path}");
+    if (updated > 0)
+        Console.WriteLine($"Log zmian: {logFile}");
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 static string ExtractToken(string html)
@@ -270,7 +324,10 @@ static string CellToString(IXLCell cell)
 
 static string ComputeEan(string raw, string plu)
 {
-    if (!string.IsNullOrEmpty(raw) && raw.Length == 13) return raw;
+    // 13-cyfrowy EAN niezaczynający się od "29" → kod producenta, zostawiamy
+    if (!string.IsNullOrEmpty(raw) && raw.Length == 13 && !raw.StartsWith("29"))
+        return raw;
+    // pozostałe (puste, krótkie, lub flag 29) → generuj wewnętrzny z flagą 29
     return ("290" + plu).PadRight(13, '0');
 }
 

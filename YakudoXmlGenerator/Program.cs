@@ -86,6 +86,8 @@ async Task RunImport(string path)
 
     using var workbook = new XLWorkbook(path);
     var sheet = workbook.Worksheet(1);
+    var (colPlu, colNazwa, colEan, colCena) = FindColumns(sheet);
+
     // Pobierz token CSRF raz — ważny przez całą sesję
     var addPage = await http.GetStringAsync("/plus/add");
     var token   = ExtractToken(addPage);
@@ -101,12 +103,12 @@ async Task RunImport(string path)
 
     foreach (var row in sheet.RowsUsed().Skip(1))
     {
-        if (row.Cell(12).IsEmpty()) { skipped++; continue; }
+        if (row.Cell(colPlu).IsEmpty()) { skipped++; continue; }
 
-        var plu      = CellToString(row.Cell(12));
-        var nazwa    = CellToString(row.Cell(2));
-        var ean      = ComputeEan(CellToString(row.Cell(3)), plu);
-        var price    = row.Cell(6).IsEmpty() ? 0.0 : row.Cell(6).GetValue<double>();
+        var plu      = CellToString(row.Cell(colPlu));
+        var nazwa    = CellToString(row.Cell(colNazwa));
+        var ean      = ComputeEan(CellToString(row.Cell(colEan)), plu);
+        var price    = row.Cell(colCena).IsEmpty() ? 0.0 : row.Cell(colCena).GetValue<double>();
         var priceStr = price.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
 
         var form     = BuildForm(nazwa, plu, ean, priceStr, token);
@@ -233,15 +235,16 @@ void RunXmlExport(string path)
 
     using var workbook = new XLWorkbook(path);
     var sheet = workbook.Worksheet(1);
+    var (colPlu, colNazwa, colEan, colCena) = FindColumns(sheet);
 
     foreach (var row in sheet.RowsUsed().Skip(1))
     {
-        if (row.Cell(12).IsEmpty()) { skipped++; continue; }
+        if (row.Cell(colPlu).IsEmpty()) { skipped++; continue; }
 
-        var plu   = CellToString(row.Cell(12));
-        var nazwa = CellToString(row.Cell(2));
-        var ean   = ComputeEan(CellToString(row.Cell(3)), plu);
-        var price = row.Cell(6).IsEmpty() ? 0.0 : row.Cell(6).GetValue<double>();
+        var plu   = CellToString(row.Cell(colPlu));
+        var nazwa = CellToString(row.Cell(colNazwa));
+        var ean   = ComputeEan(CellToString(row.Cell(colEan)), plu);
+        var price = row.Cell(colCena).IsEmpty() ? 0.0 : row.Cell(colCena).GetValue<double>();
 
         var xml      = BuildXml(nazwa, plu, ean, price);
         var fileName = $"Plu_{plu}_{ean}_{timestamp}.xml";
@@ -261,17 +264,19 @@ void RunFixEan(string path)
     using var workbook = new XLWorkbook(path);
     var sheet = workbook.Worksheet(1);
 
+    var (colPlu, colNazwa, colEan, _) = FindColumns(sheet);
+
     int updated = 0, unchanged = 0, skipped = 0;
     const string logFile = "zmienione_ean.txt";
     File.WriteAllText(logFile, $"Fix-EAN {DateTime.Now:yyyy-MM-dd HH:mm:ss}  |  Plik: {path}\r\n", Encoding.UTF8);
 
     foreach (var row in sheet.RowsUsed().Skip(1))
     {
-        if (row.Cell(12).IsEmpty()) { skipped++; continue; }
+        if (row.Cell(colPlu).IsEmpty()) { skipped++; continue; }
 
-        var plu    = CellToString(row.Cell(12));
-        var rawEan = CellToString(row.Cell(3));
-        var nazwa  = CellToString(row.Cell(2));
+        var plu    = CellToString(row.Cell(colPlu));
+        var rawEan = CellToString(row.Cell(colEan));
+        var nazwa  = CellToString(row.Cell(colNazwa));
 
         // EAN producenta (13 cyfr, nie zaczyna się od "29") → zostawiamy
         if (!string.IsNullOrEmpty(rawEan) && rawEan.Length == 13 && !rawEan.StartsWith("29"))
@@ -289,7 +294,7 @@ void RunFixEan(string path)
         }
         else
         {
-            row.Cell(3).SetValue(excelEan);
+            row.Cell(colEan).SetValue(excelEan);
             var line = $"Wiersz {row.RowNumber(),-4}  PLU {plu,-5}  {nazwa,-30}  EAN: \"{rawEan}\" → \"{excelEan}\"";
             Console.WriteLine($"  {line}");
             File.AppendAllText(logFile, line + "\r\n", Encoding.UTF8);
@@ -305,6 +310,33 @@ void RunFixEan(string path)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+static (int plu, int nazwa, int ean, int cena) FindColumns(IXLWorksheet sheet)
+{
+    var header = sheet.Row(1);
+    int plu = -1, nazwa = -1, ean = -1, cena = -1;
+
+    foreach (var cell in header.CellsUsed())
+    {
+        var val = cell.GetValue<string>().Trim().ToLowerInvariant();
+        if (val == "plu")                                    plu   = cell.Address.ColumnNumber;
+        else if (val == "nazwa")                             nazwa = cell.Address.ColumnNumber;
+        else if (val == "ean")                               ean   = cell.Address.ColumnNumber;
+        else if (val.StartsWith("cena-p") || val == "cena") cena  = cell.Address.ColumnNumber;
+    }
+
+    var missing = new List<string>();
+    if (plu   < 0) missing.Add("PLU");
+    if (nazwa < 0) missing.Add("Nazwa");
+    if (ean   < 0) missing.Add("EAN");
+    if (cena  < 0) missing.Add("Cena-PLN");
+
+    if (missing.Count > 0)
+        throw new Exception($"Nie znaleziono kolumn: {string.Join(", ", missing)}. Sprawdź nagłówki w wierszu 1.");
+
+    Console.WriteLine($"Kolumny: PLU={plu}, Nazwa={nazwa}, EAN={ean}, Cena={cena}");
+    return (plu, nazwa, ean, cena);
+}
 
 static string ExtractToken(string html)
 {
